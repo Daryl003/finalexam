@@ -3,7 +3,7 @@
  
 #pragma comment(lib, "ws2_32.lib")
  
-int main()
+int httpclient()
 {
        SOCKET      sSocket      = INVALID_SOCKET;
        SOCKADDR_IN stSvrAddrIn = {0}; /* 服务器端地址 */
