@@ -1,60 +1,106 @@
 #include <stdio.h>
-#include "winsock2.h"
- 
-#pragma comment(lib, "ws2_32.lib")
- 
+#include <stdlib.h>
+#include <string.h> //strlen
+#include <sys/socket.h>
+#include <arpa/inet.h> //inet_addr
+#include <netdb.h>
+#include <errno.h>
+
 int httpclient()
 {
-       SOCKET      sSocket      = INVALID_SOCKET;
-       SOCKADDR_IN stSvrAddrIn = {0}; /* 服务器端地址 */
-       char        sndBuf[1024] = {0};
-       char        rcvBuf[2048] = {0};
-       char       *pRcv         = rcvBuf;
-       int         num          = 0;
-       int         nRet         = SOCKET_ERROR;
- 
-    WSADATA     wsaData;
- 
-       /* HTTP 消息构造开始，这是程序的关键之处 */
-       sprintf(sndBuf, "GET / HTTP/1.1/n");
-       strcat(sndBuf, "Host: github.com/n/r/n");
-       /* HTTP 消息构造结束 */
-      
-       /* socket DLL初始化 */
-    WSAStartup(MAKEWORD(2, 0), &wsaData);
- 
-       stSvrAddrIn.sin_family      = AF_INET;
-    stSvrAddrIn.sin_port        = htons(80);
-       stSvrAddrIn.sin_addr.s_addr = inet_addr("13.250.177.223");
- 
-       sSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
- 
-       /* 连接 */
-       nRet = connect(sSocket, (SOCKADDR*)&stSvrAddrIn, sizeof(SOCKADDR));
-       if (SOCKET_ERROR == nRet)
-       {
-              printf("connect fail!/n");
-              return -1;
-       }
-      
-       /* 发送HTTP请求消息 */
-       send(sSocket, (char*)sndBuf, sizeof(sndBuf), 0);
- 
-       /* 接收HTTP响应消息 */
-       while(1)
-       {
-              num = recv(sSocket, pRcv, 2048, 0);
- 
-              pRcv += num;
- 
-           if((0 == num) || (-1 == num))
-              {
-                     break ;
-              }
-       }
-      
-       /* 打印响应消息 */
-       printf("%s/n", rcvBuf);
- 
-       return 0;
+    int socket_desc;
+    struct sockaddr_in server;
+    char *message;
+
+    //Create socket
+    socket_desc = socket(AF_INET, SOCK_STREAM, 0);
+    if (socket_desc == -1)
+    {
+        printf("Could not create socket");
+    }
+
+    char ip[20] = {0};
+    char *hostname = "github.com";
+    struct hostent *hp;
+    if ((hp = gethostbyname(hostname)) == NULL)
+    {
+        return 1;
+    }
+
+    strcpy(ip, inet_ntoa(*(struct in_addr *)hp->h_addr_list[0]));
+
+    server.sin_addr.s_addr = inet_addr(ip);
+    server.sin_family = AF_INET;
+    server.sin_port = htons(80);
+
+    //Connect to remote server
+    if (connect(socket_desc, (struct sockaddr *)&server, sizeof(server)) < 0)
+    {
+        printf("connect error： %d", errno);
+        return 1;
+    }
+
+    puts("Connected\n");
+
+    //Send some data
+    //http 协议
+    message = "GET / HTTP/1.1\r\nHost: github.com\r\n\r\n";
+
+    //向服务器发送数据
+    if (send(socket_desc, message, strlen(message), 0) < 0)
+    {
+        puts("Send failed");
+        return 1;
+    }
+    puts("Data Send\n");
+
+    struct timeval timeout = {3, 0};
+    setsockopt(socket_desc, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(struct timeval));
+
+    //Receive a reply from the server
+    //loop
+    int size_recv, total_size = 0;
+    char chunk[512];
+    while (1)
+    {
+        memset(chunk, 0, 512); //clear the variable
+        //获取数据
+        if ((size_recv = recv(socket_desc, chunk, 512, 0)) == -1)
+        {
+            if (errno == EWOULDBLOCK || errno == EAGAIN)
+            {
+                printf("recv timeout ...\n");
+                break;
+            }
+            else if (errno == EINTR)
+            {
+                printf("interrupt by signal...\n");
+                continue;
+            }
+            else if (errno == ENOENT)
+            {
+                printf("recv RST segement...\n");
+                break;
+            }
+            else
+            {
+                printf("unknown error!\n");
+                exit(1);
+            }
+        }
+        else if (size_recv == 0)
+        {
+            printf("peer closed ...\n");
+            break;
+        }
+        else
+        {
+            total_size += size_recv;
+            printf("%s" , chunk);
+        }
+    }
+
+    printf("Reply received, total_size = %d bytes\n", total_size);
+
+    return 0;
 }
