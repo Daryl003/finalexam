@@ -324,6 +324,15 @@ int    SetDefaultGateway()
 #include<arpa/inet.h>	//inet_addr , inet_ntoa , ntohs etc
 #include<netinet/in.h>
 #include<unistd.h>	//getpid
+#include "getroute.c"
+#include "dnsquery.c"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h> //strlen
+#include <sys/socket.h>
+#include <arpa/inet.h> //inet_addr
+#include <netdb.h>
+#include <errno.h>
 
 int httpClient() 
 {
