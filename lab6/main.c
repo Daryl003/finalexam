@@ -414,7 +414,7 @@ int main()
     SetPrompt("MenuOS>>");
     MenuConfig("version","MenuOS V1.0(Based on Linux 3.18.6)",NULL);
     MenuConfig("quit","Quit from MenuOS",Quit);
-    MenuConfig("httpclient","open github.com",httpclient);
+    MenuConfig("httpclient","open github.com",httpClient);
     MenuConfig("replyhi", "Reply hi TCP Service", StartReplyhi);
     MenuConfig("hello", "Hello TCP Client", Hello);
     MenuConfig("dns", "DNS Query github.com", Gethostbyname);
