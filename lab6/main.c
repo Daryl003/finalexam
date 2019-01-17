@@ -317,114 +317,93 @@ int    SetDefaultGateway()
     printf("Default gateway %s\n", inet_ntoa( ( (struct sockaddr_in *)  &route.rt_gateway)->sin_addr)); 
 }
 
-#include "getroute.c"
-#include "dnsquery.c"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h> //strlen
-#include <sys/socket.h>
-#include <arpa/inet.h> //inet_addr
-#include <netdb.h>
-#include <errno.h>
+#include<stdio.h>	//printf
+#include<string.h>	//strlen
+#include<stdlib.h>	//malloc
+#include<sys/socket.h>	//you know what this is for
+#include<arpa/inet.h>	//inet_addr , inet_ntoa , ntohs etc
+#include<netinet/in.h>
+#include<unistd.h>	//getpid
 
-int httpclient()
+int httpClient() 
 {
-    int socket_desc;
-    struct sockaddr_in server;
-    char *message;
 
-    //Create socket
-    socket_desc = socket(AF_INET, SOCK_STREAM, 0);
-    if (socket_desc == -1)
-    {
-        printf("Could not create socket");
-    }
+        int     sSocket;
+        struct sockaddr_in stSvrAddrIn; /* 服务器端地址 */
+	struct sockaddr_in clientAddr;/*client addr*/
+        char        sndBuf[1024] = {0};
+        char        rcvBuf[2048] = {0};
+        char       *pRcv         = rcvBuf;
+        int         num          = 0;
+        int         nRet         ;
+	char	*dst_ip;
+	int	ip_lenth;
+	
+	ip_lenth = strlen(dns_result);
+	dst_ip = (char *)malloc(ip_lenth*sizeof(char));
+	dst_ip = dns_result;
+        /* HTTP 消息构造开始,这是程序的关键之处 */
+/*
+        sprintf(sndBuf, "GET / HTTP/1.1\n");
+        strcat(sndBuf, "Host: www.163.com\r\n");
+	strcat(sndBuf, "User-Agent: curl/7.16.3 libcurl/7.16.3 OpenSSL/0.9.7l zlib/1.2.3\r\n");
+	strcat(sndBuf, "Accept-Language: en, mi\r\n");
+*/
+	sprintf(sndBuf,"GET / HTTP/1.1\r\n");
+	strcat(sndBuf,"Accept:html/text*/*\r\n");
+	strcat(sndBuf,"Accept-language:zh-ch\r\n");
+	strcat(sndBuf,"Accept-Encoding:gzip,deflate\r\n");
 
-    char ip[20] = {0};
-    char *hostname = "github.com";
-    struct hostent *hp;
-    if ((hp = gethostbyname(hostname)) == NULL)
-    {
-        return 1;
-    }
+//	strcat(sndBuf,"Host: 180.97.33.107:80\r\n");
+//	strcat(sndBuf,"Host: 13.250.177.223\r\n");
+	strcat(sndBuf,"Host: ");
+	strcat(sndBuf,dst_ip);
+	strcat(sndBuf,"\r\n");
+	strcat(sndBuf,"User-Agent:client<1.0>\r\n");
+	strcat(sndBuf,"Connection:Close\r\n");
+	strcat(sndBuf,"\r\n");
+	printf("sndBuf = %s\n",sndBuf);
 
-    strcpy(ip, inet_ntoa(*(struct in_addr *)hp->h_addr_list[0]));
+        /* HTTP 消息构造结束 */
+        /* socket DLL初始化 */
+     
+     stSvrAddrIn.sin_family      = AF_INET;
+     stSvrAddrIn.sin_port        = htons(80);
+     stSvrAddrIn.sin_addr.s_addr = inet_addr(dst_ip);//www.baidu.com 180.97.33.107
 
-    server.sin_addr.s_addr = inet_addr(ip);
-    server.sin_family = AF_INET;
-    server.sin_port = htons(80);
+     clientAddr.sin_family = AF_INET;
+     clientAddr.sin_port = htons(8080);
+     clientAddr.sin_addr.s_addr = inet_addr("192.168.40.18");//192.168.40.254 MenuOS
 
-    //Connect to remote server
-    if (connect(socket_desc, (struct sockaddr *)&server, sizeof(server)) < 0)
-    {
-        printf("connect error： %d", errno);
-        return 1;
-    }
 
-    puts("Connected\n");
+     sSocket = socket(AF_INET, SOCK_STREAM, 0);
 
-    //Send some data
-    //http 协议
-    message = "GET / HTTP/1.1\r\nHost: github.com\r\n\r\n";
-
-    //向服务器发送数据
-    if (send(socket_desc, message, strlen(message), 0) < 0)
-    {
-        puts("Send failed");
-        return 1;
-    }
-    puts("Data Send\n");
-
-    struct timeval timeout = {3, 0};
-    setsockopt(socket_desc, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(struct timeval));
-
-    //Receive a reply from the server
-    //loop
-    int size_recv, total_size = 0;
-    char chunk[512];
-    while (1)
-    {
-        memset(chunk, 0, 512); //clear the variable
-        //获取数据
-        if ((size_recv = recv(socket_desc, chunk, 512, 0)) == -1)
+     bind(sSocket, (struct sockaddr *)&clientAddr, sizeof(clientAddr));
+          /* 连接 */
+     nRet = connect(sSocket, (struct sockaddr *)&stSvrAddrIn, sizeof(stSvrAddrIn));
+        if (nRet<0)
         {
-            if (errno == EWOULDBLOCK || errno == EAGAIN)
-            {
-                printf("recv timeout ...\n");
-                break;
-            }
-            else if (errno == EINTR)
-            {
-                printf("interrupt by signal...\n");
-                continue;
-            }
-            else if (errno == ENOENT)
-            {
-                printf("recv RST segement...\n");
-                break;
-            }
-            else
-            {
-                printf("unknown error!\n");
-                exit(1);
-            }
+               printf("connect fail!/n");
+               return -1;
         }
-        else if (size_recv == 0)
-        {
-            printf("peer closed ...\n");
-            break;
-        }
-        else
-        {
-            total_size += size_recv;
-            printf("%s" , chunk);
-        }
-    }
+               /* 发送HTTP请求消息 */
 
-    printf("Reply received, total_size = %d bytes\n", total_size);
-
-    return 0;
-}
+        send(sSocket, (char*)sndBuf, sizeof(sndBuf), 0);
+          /* 接收HTTP响应消息 */
+        while(1)
+        {
+               num = recv(sSocket, pRcv, 2048, 0);
+                 pRcv += num;
+              if((0 == num) || (-1 == num))
+               {
+                      break ;
+               }
+	
+        }
+               /* 打印响应消息 */
+        printf("%s/n", rcvBuf);
+          return 0; 
+} 
 
 int main()
 {
