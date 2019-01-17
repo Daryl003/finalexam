@@ -319,7 +319,7 @@ int    SetDefaultGateway()
 
 #include "getroute.c"
 #include "dnsquery.c"
-#include "httpclient.c"
+#include "httpclient.h"
 int main()
 {
     BringUpNetInterface();
